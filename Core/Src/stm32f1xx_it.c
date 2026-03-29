@@ -60,6 +60,7 @@ extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA_HandleTypeDef hdma_spi1_tx;
+extern DMA_HandleTypeDef hdma_usart2_rx;
 extern TIM_HandleTypeDef htim3;
 /* USER CODE BEGIN EV */
 
@@ -232,6 +233,20 @@ void DMA1_Channel3_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 channel6 global interrupt.
+  */
+void DMA1_Channel6_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel6_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel6_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart2_rx);
+  /* USER CODE BEGIN DMA1_Channel6_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel6_IRQn 1 */
+}
+
+/**
   * @brief This function handles ADC1 and ADC2 global interrupts.
   */
 void ADC1_2_IRQHandler(void)
@@ -276,8 +291,31 @@ void EXTI15_10_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 /* USER CODE BEGIN USART2_IRQn */
+extern volatile uint8_t g_rx_data[];
+extern volatile uint16_t g_rx_len;
+extern volatile uint8_t g_rx_ready;
+
 void USART2_IRQHandler(void)
 {
+  // 检查是否是空闲中断
+  if(__HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE))
+  {
+    // 清除空闲中断标志
+    __HAL_UART_CLEAR_IDLEFLAG(&huart2);
+    
+    // 停止DMA接收
+    HAL_UART_DMAStop(&huart2);
+    
+    // 计算实际接收到的数据长度
+    g_rx_len = 128 - __HAL_DMA_GET_COUNTER(&hdma_usart2_rx);
+    
+    // 设置接收完成标志
+    g_rx_ready = 1;
+    
+    // 重新启动DMA接收
+    HAL_UART_Receive_DMA(&huart2, (uint8_t *)g_rx_data, 128);
+  }
+  
   HAL_UART_IRQHandler(&huart2);
 }
 /* USER CODE END USART2_IRQn */

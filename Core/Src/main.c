@@ -31,6 +31,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "motor/motor_runtime_param.h"
 #include "motor/foc.h"
 #include "global_def.h"
@@ -55,13 +57,17 @@
 
 /* USER CODE BEGIN PV */
 volatile uint32_t g_blink_speed = 1000;   // 0=1000延迟, 1=200延迟, 2=50延迟
-volatile uint8_t g_rx_data = 0;       // 串口接收缓冲区
+volatile uint8_t g_rx_data[128] = {0};     // 串口接收缓冲区（增大到128字节）
+volatile uint16_t g_rx_len = 0;            // 实际接收到的数据长度
+volatile uint8_t g_cmd_buffer[64];         // 命令缓冲区
+volatile uint16_t g_cmd_index = 0;         // 命令缓冲区索引
+volatile uint8_t g_rx_ready = 0;           // 接收完成标志
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void parse_command(uint8_t *cmd, uint16_t len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -121,8 +127,10 @@ int main(void)
   // 使能串口2中断（如果 CubeMX 没生成）
   HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(USART2_IRQn);
-  // 启动串口中断接收（接收1个字节到 g_rx_data）
-  HAL_UART_Receive_IT(&huart2, (uint8_t*)&g_rx_data, 1);
+  // 启动串口DMA接收（不定长接收，最大128字节）
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)g_rx_data, 128);
+  // 使能UART空闲中断
+  __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
   set_motor_pid(
       3.5, 0, 7,
       0.02, 0.001, 0,
@@ -167,8 +175,19 @@ int main(void)
   // motor_control_context.type = control_type_speed;
 
   // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
+  HAL_Delay(g_blink_speed);
+  motor_control_context.speed = 10;       // 每秒30弧度
+  motor_control_context.type = control_type_speed;
   while (1)
   {
+    if (g_rx_ready)
+    {
+      g_rx_ready = 0;
+      g_rx_data[g_rx_len] = '\0';
+      printf("Received %d bytes: %s\r\n", g_rx_len, g_rx_data);
+      parse_command((uint8_t *)g_rx_data, g_rx_len);
+    }
+    
     printf("hello world. \r\n");
     printf("%.3f\n", rad2deg(motor_logic_angle));
     HAL_Delay(g_blink_speed);
@@ -229,49 +248,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void parse_command(uint8_t *cmd, uint16_t len)
 {
-  if (huart->Instance == USART2)
+  if (len < 8) return;
+  
+  if (strncmp((char*)cmd, "speed:", 6) == 0 && cmd[len - 1] == '#')
   {
-    // 根据接收字符切换电机控制模式
-    switch (g_rx_data)
-    {
-      // case '0':  // 【电流模式】
-      //   motor_control_context.torque_norm_d = 0;
-      //   motor_control_context.torque_norm_q = 0.4; // 40% 转矩输出
-      //   motor_control_context.type = control_type_torque;
-      //   break;
-        
-      // case '1':  // 【位置（角度）模式】
-      //   motor_control_context.position = deg2rad(90); // 目标位置90度
-      //   // 如需使用编码器零位作为参考，使用下面这行：
-      //   // motor_control_context.position = deg2rad(90) - encoder_init_angle;
-      //   motor_control_context.type = control_type_position;
-      //   break;
-
-      // case '2':  // 【速度模式】
-      //   motor_control_context.speed = 30;       // 每秒30弧度
-      //   motor_control_context.type = control_type_speed;
-      //   break;
-
-      case '0':  // 【电流模式】
-        motor_control_context.speed = 10;       // 每秒30弧度
-        motor_control_context.type = control_type_speed;
-        break;
-        
-      case '1':  // 【位置（角度）模式】
-        motor_control_context.speed = 60;       // 每秒30弧度
-        motor_control_context.type = control_type_speed;
-        break;
-        
-      case '2':  // 【速度模式】
-        motor_control_context.speed = 100;       // 每秒30弧度
-        motor_control_context.type = control_type_speed;
-        break;
-    }
-    
-    // 必须重新启动接收，否则只收一次
-    HAL_UART_Receive_IT(&huart2, (uint8_t*)&g_rx_data, 1);
+    float speed = atof((char*)&cmd[6]);
+    motor_control_context.speed = speed;
+    motor_control_context.type = control_type_speed;
+    printf("Set speed to: %.2f rad/s\r\n", speed);
   }
 }
 
