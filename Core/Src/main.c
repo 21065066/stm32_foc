@@ -54,11 +54,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+volatile uint32_t g_blink_speed = 1000;   // 0=1000延迟, 1=200延迟, 2=50延迟
+volatile uint8_t g_rx_data = 0;       // 串口接收缓冲区
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void App_OnBoardLED_Init(void); // 板载LED初始化
+void App_USART2_Init(void); // usart2初始化 
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -92,7 +95,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+  HAL_Init(); // HAL_NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_2); // 设置中断优先级分组
 
   /* USER CODE BEGIN Init */
 
@@ -107,6 +110,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  App_OnBoardLED_Init();
+  App_USART2_Init();
+  
   MX_DMA_Init();
   MX_SPI1_Init();
   MX_USART2_UART_Init();
@@ -114,7 +120,13 @@ int main(void)
   MX_TIM3_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
+
   /* USER CODE BEGIN 2 */
+  // 使能串口2中断（如果 CubeMX 没生成）
+  HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(USART2_IRQn);
+  // 启动串口中断接收（接收1个字节到 g_rx_data）
+  HAL_UART_Receive_IT(&huart2, (uint8_t*)&g_rx_data, 1);
   set_motor_pid(
       3.5, 0, 7,
       0.02, 0.001, 0,
@@ -161,11 +173,12 @@ int main(void)
   // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
   while (1)
   {
+    printf("hello world. \r\n");
     printf("%.3f\n", rad2deg(motor_logic_angle));
-    HAL_Delay(100);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
-    HAL_Delay(100);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+    HAL_Delay(g_blink_speed);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 亮灯
+    HAL_Delay(g_blink_speed);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); // 灭灯
 
     /* USER CODE END WHILE */
 
@@ -220,6 +233,23 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART2)
+  {
+    // 根据接收字符改变速度
+    switch (g_rx_data)
+    {
+      case '0': g_blink_speed = 1000; break;  // 慢闪: 1秒
+      case '1': g_blink_speed = 200; break;  // 快闪: 300ms
+      case '2': g_blink_speed = 50; break;  // 超快闪: 100ms
+    }
+    
+    // 必须重新启动接收，否则只收一次
+    HAL_UART_Receive_IT(&huart2, (uint8_t*)&g_rx_data, 1);
+  }
+}
+
 
 /* USER CODE END 4 */
 
