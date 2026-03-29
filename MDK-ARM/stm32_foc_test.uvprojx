@@ -745,6 +745,11 @@
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32f1xx_hal_msp.c</FilePath>
             </File>
+            <File>
+              <FileName>protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/protocol.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

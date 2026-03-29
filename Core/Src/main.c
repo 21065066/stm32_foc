@@ -36,6 +36,7 @@
 #include "motor/motor_runtime_param.h"
 #include "motor/foc.h"
 #include "global_def.h"
+#include "protocol.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -67,7 +68,7 @@ volatile uint8_t g_rx_ready = 0;           // 接收完成标志
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void parse_command(uint8_t *cmd, uint16_t len);
+void protocol_process_rx_data(uint8_t *data, uint16_t len);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -183,13 +184,11 @@ int main(void)
     if (g_rx_ready)
     {
       g_rx_ready = 0;
-      g_rx_data[g_rx_len] = '\0';
-      printf("Received %d bytes: %s\r\n", g_rx_len, g_rx_data);
-      parse_command((uint8_t *)g_rx_data, g_rx_len);
+      protocol_process_rx_data((uint8_t *)g_rx_data, g_rx_len);
     }
     
-    printf("hello world. \r\n");
-    printf("%.3f\n", rad2deg(motor_logic_angle));
+    // printf("hello world. \r\n");
+    // printf("%.3f\n", rad2deg(motor_logic_angle));
     HAL_Delay(g_blink_speed);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 亮灯
     HAL_Delay(g_blink_speed);
@@ -248,17 +247,35 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void parse_command(uint8_t *cmd, uint16_t len)
+void protocol_process_rx_data(uint8_t *data, uint16_t len)
 {
-  if (len < 8) return;
-  
-  if (strncmp((char*)cmd, "speed:", 6) == 0 && cmd[len - 1] == '#')
-  {
-    float speed = atof((char*)&cmd[6]);
-    motor_control_context.speed = speed;
-    motor_control_context.type = control_type_speed;
-    printf("Set speed to: %.2f rad/s\r\n", speed);
-  }
+    protocol_parsed_frame_t frame;
+    // 打印接收数据为16进制
+    for (uint16_t i = 0; i < len; i++) {
+        char buf[16] = {0};
+        sprintf(buf, "%02X", data[i]);
+        printf("%s ", buf);
+    }
+    printf("\r\n");
+
+    if (protocol_parse_frame(data, len, &frame)) {
+        protocol_process_frame(&frame);
+        if(frame.cmd == CMD_SET){
+            if(frame.param_id == PARAM_ID_POLE_PAIRS){
+                float speed = 0.0f;
+                memcpy(&speed, frame.data, sizeof(float));
+                motor_control_context.speed = speed;
+                motor_control_context.type = control_type_speed;
+                printf("set speed: %.3f\r\n", motor_control_context.speed);
+            }
+        }else if(frame.cmd == CMD_GET){
+            if(frame.param_id == PARAM_ID_POLE_PAIRS){
+                
+            }
+        }
+    } else {
+        printf("Invalid frame received\r\n");
+    }
 }
 
 
