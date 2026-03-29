@@ -60,8 +60,6 @@ volatile uint8_t g_rx_data = 0;       // 串口接收缓冲区
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void App_OnBoardLED_Init(void); // 板载LED初始化
-void App_USART2_Init(void); // usart2初始化 
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -110,8 +108,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  App_OnBoardLED_Init();
-  App_USART2_Init();
   
   MX_DMA_Init();
   MX_SPI1_Init();
@@ -237,12 +233,41 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART2)
   {
-    // 根据接收字符改变速度
+    // 根据接收字符切换电机控制模式
     switch (g_rx_data)
     {
-      case '0': g_blink_speed = 1000; break;  // 慢闪: 1秒
-      case '1': g_blink_speed = 200; break;  // 快闪: 300ms
-      case '2': g_blink_speed = 50; break;  // 超快闪: 100ms
+      // case '0':  // 【电流模式】
+      //   motor_control_context.torque_norm_d = 0;
+      //   motor_control_context.torque_norm_q = 0.4; // 40% 转矩输出
+      //   motor_control_context.type = control_type_torque;
+      //   break;
+        
+      // case '1':  // 【位置（角度）模式】
+      //   motor_control_context.position = deg2rad(90); // 目标位置90度
+      //   // 如需使用编码器零位作为参考，使用下面这行：
+      //   // motor_control_context.position = deg2rad(90) - encoder_init_angle;
+      //   motor_control_context.type = control_type_position;
+      //   break;
+
+      // case '2':  // 【速度模式】
+      //   motor_control_context.speed = 30;       // 每秒30弧度
+      //   motor_control_context.type = control_type_speed;
+      //   break;
+
+      case '0':  // 【电流模式】
+        motor_control_context.speed = 10;       // 每秒30弧度
+        motor_control_context.type = control_type_speed;
+        break;
+        
+      case '1':  // 【位置（角度）模式】
+        motor_control_context.speed = 60;       // 每秒30弧度
+        motor_control_context.type = control_type_speed;
+        break;
+        
+      case '2':  // 【速度模式】
+        motor_control_context.speed = 100;       // 每秒30弧度
+        motor_control_context.type = control_type_speed;
+        break;
     }
     
     // 必须重新启动接收，否则只收一次
