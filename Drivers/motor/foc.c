@@ -127,31 +127,48 @@ void lib_position_speed_torque_control(float position_rad, float max_speed_rad, 
     lib_speed_torque_control(speed_rad, max_torque_norm);
 }
 
+void set_position_pid(float position_p, float position_i, float position_d)
+{
+    pid_position.Kp = position_p;
+    pid_position.Ki = position_i;
+    pid_position.Kd = position_d;
+    arm_pid_init_f32(&pid_position, false);
+}
+
+void set_speed_pid(float speed_p, float speed_i, float speed_d)
+{
+    pid_speed.Kp = speed_p;
+    pid_speed.Ki = speed_i;
+    pid_speed.Kd = speed_d;
+    arm_pid_init_f32(&pid_speed, false);
+}
+
+void set_torque_d_pid(float torque_d_p, float torque_d_i, float torque_d_d)
+{
+    pid_torque_d.Kp = torque_d_p;
+    pid_torque_d.Ki = torque_d_i;
+    pid_torque_d.Kd = torque_d_d;
+    arm_pid_init_f32(&pid_torque_d, false);
+}
+
+void set_torque_q_pid(float torque_q_p, float torque_q_i, float torque_q_d)
+{
+    pid_torque_q.Kp = torque_q_p;
+    pid_torque_q.Ki = torque_q_i;
+    pid_torque_q.Kd = torque_q_d;
+    arm_pid_init_f32(&pid_torque_q, false);
+}
+
 void set_motor_pid(
     float position_p, float position_i, float position_d,
     float speed_p, float speed_i, float speed_d,
     float torque_d_p, float torque_d_i, float torque_d_d,
     float torque_q_p, float torque_q_i, float torque_q_d)
 {
-    pid_position.Kp = position_p;
-    pid_position.Ki = position_i;
-    pid_position.Kd = position_d;
-
-    pid_speed.Kp = speed_p;
-    pid_speed.Ki = speed_i;
-    pid_speed.Kd = speed_d;
-
-    pid_torque_d.Kp = torque_d_p;
-    pid_torque_d.Ki = torque_d_i;
-    pid_torque_d.Kd = torque_d_d;
-
-    pid_torque_q.Kp = torque_q_p;
-    pid_torque_q.Ki = torque_q_i;
-    pid_torque_q.Kd = torque_q_d;
-    arm_pid_init_f32(&pid_position, false);
-    arm_pid_init_f32(&pid_speed, false);
-    arm_pid_init_f32(&pid_torque_d, false);
-    arm_pid_init_f32(&pid_torque_q, false);
+    set_position_pid(position_p, position_i, position_d);
+    set_speed_pid(speed_p, speed_i, speed_d);
+    set_torque_d_pid(torque_d_p, torque_d_i, torque_d_d);
+    set_torque_q_pid(torque_q_p, torque_q_i, torque_q_d);
 }
 
 float cycle_diff(float diff, float cycle)

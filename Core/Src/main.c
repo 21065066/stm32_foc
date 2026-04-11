@@ -31,8 +31,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "motor/motor_runtime_param.h"
 #include "motor/foc.h"
 #include "global_def.h"
@@ -45,6 +43,7 @@
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
+#define UART_CMD_LENGTH  8   // 命令帧长度
 /* USER CODE BEGIN PD */
 
 /* USER CODE END PD */
@@ -58,17 +57,12 @@
 
 /* USER CODE BEGIN PV */
 volatile uint32_t g_blink_speed = 1000;   // 0=1000延迟, 1=200延迟, 2=50延迟
-volatile uint8_t g_rx_data[128] = {0};     // 串口接收缓冲区（增大到128字节）
-volatile uint16_t g_rx_len = 0;            // 实际接收到的数据长度
-volatile uint8_t g_cmd_buffer[64];         // 命令缓冲区
-volatile uint16_t g_cmd_index = 0;         // 命令缓冲区索引
-volatile uint8_t g_rx_ready = 0;           // 接收完成标志
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void protocol_process_rx_data(uint8_t *data, uint16_t len);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -84,7 +78,15 @@ void set_pwm_duty(float d_u, float d_v, float d_w)
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, d_w * htim1.Instance->ARR);
   __enable_irq();
 }
-/* USER CODE END 0 */
+
+/* USER CODE BEGIN 1 */
+/* 重定向 printf 到串口 */
+int __io_putchar(int ch)
+{
+    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 100);
+    return ch;
+}
+/* USER CODE END 1 */
 
 /**
  * @brief  The application entry point.
@@ -125,14 +127,9 @@ int main(void)
   MX_ADC2_Init();
 
   /* USER CODE BEGIN 2 */
-  // 使能串口2中断（如果 CubeMX 没生成）
-  HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(USART2_IRQn);
-  // 启动串口DMA接收（不定长接收，最大128字节）
-  HAL_UART_Receive_DMA(&huart2, (uint8_t *)g_rx_data, 128);
-  // 使能UART空闲中断
-  __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
-  set_motor_pid(
+  // 初始化协议
+  protocol_init();
+   set_motor_pid(
       3.5, 0, 7,
       0.02, 0.001, 0,
       1.2, 0.02, 0,
@@ -176,23 +173,20 @@ int main(void)
   // motor_control_context.type = control_type_speed;
 
   // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
-  HAL_Delay(g_blink_speed);
+  
   motor_control_context.speed = 10;       // 每秒30弧度
   motor_control_context.type = control_type_speed;
   while (1)
   {
-    if (g_rx_ready)
-    {
-      g_rx_ready = 0;
-      protocol_process_rx_data((uint8_t *)g_rx_data, g_rx_len);
-    }
-    
+
+
     // printf("hello world. \r\n");
     // printf("%.3f\n", rad2deg(motor_logic_angle));
     HAL_Delay(g_blink_speed);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 亮灯
+    // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 亮灯
     HAL_Delay(g_blink_speed);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); // 灭灯
+    // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); // 灭灯
+
 
     /* USER CODE END WHILE */
 
@@ -247,38 +241,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void protocol_process_rx_data(uint8_t *data, uint16_t len)
-{
-    protocol_parsed_frame_t frame;
-    // 打印接收数据为16进制
-    for (uint16_t i = 0; i < len; i++) {
-        char buf[16] = {0};
-        sprintf(buf, "%02X", data[i]);
-        printf("%s ", buf);
-    }
-    printf("\r\n");
-
-    if (protocol_parse_frame(data, len, &frame)) {
-        protocol_process_frame(&frame);
-        if(frame.cmd == CMD_SET){
-            if(frame.param_id == PARAM_ID_POLE_PAIRS){
-                float speed = 0.0f;
-                memcpy(&speed, frame.data, sizeof(float));
-                motor_control_context.speed = speed;
-                motor_control_context.type = control_type_speed;
-                printf("set speed: %.3f\r\n", motor_control_context.speed);
-            }
-        }else if(frame.cmd == CMD_GET){
-            if(frame.param_id == PARAM_ID_POLE_PAIRS){
-                
-            }
-        }
-    } else {
-        printf("Invalid frame received\r\n");
-    }
-}
-
-
 /* USER CODE END 4 */
 
 /**

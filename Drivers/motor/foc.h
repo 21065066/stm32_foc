@@ -32,6 +32,11 @@ void lib_torque_control(float torque_norm_d, float torque_norm_q);              
 void lib_speed_torque_control(float speed, float max_torque_norm);                              // 速度-力矩控制
 void lib_position_speed_torque_control(float position, float max_speed, float max_torque_norm); // 位置-速度-力矩控制
 
+
+void set_position_pid(float position_p, float position_i, float position_d);
+void set_speed_pid(float speed_p, float speed_i, float speed_d);
+void set_torque_d_pid(float torque_d_p, float torque_d_i, float torque_d_d);
+void set_torque_q_pid(float torque_q_p, float torque_q_i, float torque_q_d);
 void set_motor_pid(
     float position_p, float position_i, float position_d,
     float speed_p, float speed_i, float speed_d,
