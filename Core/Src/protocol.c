@@ -207,97 +207,91 @@ uint8_t protocol_read_param(uint8_t param_id, uint8_t *data, uint8_t *data_len)
 /* 写入参数 */
 uint8_t protocol_write_param(uint8_t param_id, uint8_t *data, uint8_t data_len)
 {
-    int32_t value = 0;
+    int32_t valueInt[3] = {0};
+    float valueFloat[3] = {0};
     if (data == NULL || data_len == 0)
     {
         return ERR_DATA_LENGTH;
     }
-    
-    /* 解析float值 */
-    if (data_len == 1)
-    {
-    }
-    else
-    {
-        return ERR_DATA_LENGTH;
-    }
+
+    memcpy(valueInt, data, 12);
+    memcpy(valueFloat, data, 12);
     
     switch (param_id)
     {
         /* 硬件参数 */
         case PARAM_POLE_PAIRS:
-            /* 暂不支持动态修改极对数 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            POLE_PAIRS = valueInt[0];
+            break;
             
         case PARAM_SHUNT_RESISTANCE:
-            /* 暂不支持动态修改采样电阻参数 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            R_SHUNT = valueFloat[0];
+            break;
             
         case PARAM_OP_GAIN:
-            /* 暂不支持动态修改运放增益 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            OP_GAIN = valueFloat[0];
+            break;
             
         case PARAM_MAX_CURRENT:
-            MAX_CURRENT = value;
+            MAX_CURRENT = valueInt[0];;
             break;
             
         case PARAM_ADC_REFERENCE:
-            /* 暂不支持动态修改ADC参考电压 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            ADC_REFERENCE_VOLT = valueFloat[0];
+            break;
             
         case PARAM_PWM_FREQUENCY:
-            /* 暂不支持动态修改PWM频率 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            motor_pwm_freq = valueFloat[0];
+            break;
             
         case PARAM_SPEED_CALC_FREQ:
-            /* 暂不支持动态修改速度计算频率 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            motor_speed_calc_freq = valueFloat[0];
+            break;
             
         case PARAM_ADC_BITS:
-            /* 暂不支持动态修改ADC精度 */
-            return ERR_VALUE_OUT_OF_RANGE;
+            ADC_BITS = valueInt[0];
+            break;
             
         case PARAM_POSITION_CYCLE:
-            position_cycle = value;
+            position_cycle = valueFloat[0];
             break;
             
         /* PID参数 */
         case PARAM_POSITION_PID:
-            /* 暂未实现PID参数写入 */
+            set_position_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
             return ERR_UNKNOWN_PARAM_ID;
             
         case PARAM_SPEED_PID:
-            /* 暂未实现PID参数写入 */
+            set_speed_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
             return ERR_UNKNOWN_PARAM_ID;
             
         case PARAM_TORQUE_D_PID:
-            /* 暂未实现PID参数写入 */
+            set_torque_d_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
             return ERR_UNKNOWN_PARAM_ID;
             
         case PARAM_TORQUE_Q_PID:
-            /* 暂未实现PID参数写入 */
+            set_torque_q_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
             return ERR_UNKNOWN_PARAM_ID;
             
         /* 目标值 */
         case PARAM_CONTROL_TYPE:
-            motor_control_context.type = (motor_control_type)value;
+            motor_control_context.type = (motor_control_type)valueFloat[0];
             break;
             
         case PARAM_TARGET_POSITION:
-            motor_control_context.position = value;
+            motor_control_context.position = valueFloat[0];
             break;
             
         case PARAM_TARGET_SPEED:
-            memcpy(&value, data, 4);
-            motor_control_context.speed = value;
+            motor_control_context.speed = valueFloat[0];
             break;
             
         case PARAM_TARGET_TORQUE_D: {
-            motor_control_context.torque_norm_d = value;
+            motor_control_context.torque_norm_d = valueFloat[0];
 		} break;
             
         case PARAM_TARGET_TORQUE_Q:
-            motor_control_context.torque_norm_q = value;
+            motor_control_context.torque_norm_q = valueFloat[0];
             break;
             
         default:
