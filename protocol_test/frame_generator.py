@@ -8,6 +8,9 @@ STM32 FOC 协议帧生成器
 
 import sys
 import struct
+import serial
+import serial.tools.list_ports
+from datetime import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QLabel, QLineEdit, 
                              QTextEdit, QComboBox, QGroupBox, QSpinBox,
@@ -204,8 +207,11 @@ class FrameGeneratorWindow(QMainWindow):
     """帧生成器主窗口"""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("STM32 FOC 协议帧生成器")
-        self.setGeometry(100, 100, 800, 600)
+        self.setWindowTitle("STM32 FOC 协议帧生成器与发送工具")
+        self.setGeometry(100, 100, 800, 800)
+        
+        self.serial = None
+        self.current_frame = None
         
         self.init_ui()
     
@@ -215,6 +221,32 @@ class FrameGeneratorWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         
         main_layout = QVBoxLayout()
+        
+        # 串口配置
+        serial_group = QGroupBox("串口连接")
+        serial_layout = QHBoxLayout()
+        
+        serial_layout.addWidget(QLabel("端口:"))
+        self.port_combo = QComboBox()
+        self.refresh_ports()
+        serial_layout.addWidget(self.port_combo)
+        
+        self.refresh_btn = QPushButton("刷新")
+        self.refresh_btn.clicked.connect(self.refresh_ports)
+        serial_layout.addWidget(self.refresh_btn)
+        
+        serial_layout.addWidget(QLabel("波特率:"))
+        self.baud_combo = QComboBox()
+        self.baud_combo.addItems(["9600", "115200", "921600"])
+        self.baud_combo.setCurrentText("115200")
+        serial_layout.addWidget(self.baud_combo)
+        
+        self.open_btn = QPushButton("打开串口")
+        self.open_btn.clicked.connect(self.toggle_serial)
+        serial_layout.addWidget(self.open_btn)
+        
+        serial_group.setLayout(serial_layout)
+        main_layout.addWidget(serial_group)
         
         # 帧基本信息
         frame_group = QGroupBox("帧基本信息")
@@ -258,20 +290,28 @@ class FrameGeneratorWindow(QMainWindow):
         data_group.setLayout(data_layout)
         main_layout.addWidget(data_group)
         
-        # 生成按钮
+        # 操作按钮
+        btn_layout = QHBoxLayout()
         self.generate_btn = QPushButton("生成帧")
         self.generate_btn.clicked.connect(self.generate_frame)
         self.generate_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
-        main_layout.addWidget(self.generate_btn)
+        btn_layout.addWidget(self.generate_btn)
+        
+        self.send_btn = QPushButton("发送帧")
+        self.send_btn.clicked.connect(self.send_frame)
+        self.send_btn.setStyleSheet("font-size: 14px; font-weight: bold; color: blue;")
+        self.send_btn.setEnabled(False)
+        btn_layout.addWidget(self.send_btn)
+        main_layout.addLayout(btn_layout)
         
         # 输出显示
-        output_group = QGroupBox("生成结果")
+        output_group = QGroupBox("生成结果与日志")
         output_layout = QVBoxLayout()
         
         # 十六进制显示
         self.hex_edit = QTextEdit()
         self.hex_edit.setReadOnly(True)
-        self.hex_edit.setMaximumHeight(100)
+        self.hex_edit.setMaximumHeight(80)
         self.hex_edit.setStyleSheet("font-family: 'Courier New';")
         output_layout.addWidget(QLabel("十六进制格式:"))
         output_layout.addWidget(self.hex_edit)
@@ -279,17 +319,24 @@ class FrameGeneratorWindow(QMainWindow):
         # C语言数组显示
         self.c_array_edit = QTextEdit()
         self.c_array_edit.setReadOnly(True)
-        self.c_array_edit.setMaximumHeight(100)
+        self.c_array_edit.setMaximumHeight(80)
         self.c_array_edit.setStyleSheet("font-family: 'Courier New';")
         output_layout.addWidget(QLabel("C语言数组格式:"))
         output_layout.addWidget(self.c_array_edit)
         
-        # 详细信息
+        # 详细信息与日志
+        log_tab = QTabWidget()
+        
         self.detail_edit = QTextEdit()
         self.detail_edit.setReadOnly(True)
-        self.detail_edit.setMaximumHeight(150)
-        output_layout.addWidget(QLabel("详细信息:"))
-        output_layout.addWidget(self.detail_edit)
+        log_tab.addTab(self.detail_edit, "帧详细解析")
+        
+        self.log_edit = QTextEdit()
+        self.log_edit.setReadOnly(True)
+        self.log_edit.setStyleSheet("background-color: #1e1e1e; color: #d4d4d4;")
+        log_tab.addTab(self.log_edit, "通信日志")
+        
+        output_layout.addWidget(log_tab)
         
         output_group.setLayout(output_layout)
         main_layout.addWidget(output_group)
@@ -315,6 +362,53 @@ class FrameGeneratorWindow(QMainWindow):
             else:
                 entry.setEnabled(False)
     
+    def refresh_ports(self):
+        """刷新串口列表"""
+        ports = [port.device for port in serial.tools.list_ports.comports()]
+        self.port_combo.clear()
+        self.port_combo.addItems(ports)
+        
+    def toggle_serial(self):
+        """打开/关闭串口"""
+        if self.serial and self.serial.is_open:
+            self.serial.close()
+            self.serial = None
+            self.open_btn.setText("打开串口")
+            self.send_btn.setEnabled(False)
+            self.log("串口已关闭")
+        else:
+            try:
+                port = self.port_combo.currentText()
+                baud = int(self.baud_combo.currentText())
+                if not port:
+                    self.log("错误: 未选择串口")
+                    return
+                self.serial = serial.Serial(port, baud, timeout=1)
+                self.open_btn.setText("关闭串口")
+                if self.current_frame:
+                    self.send_btn.setEnabled(True)
+                self.log(f"成功连接串口: {port} (波特率: {baud})")
+            except Exception as e:
+                self.log(f"打开串口失败: {str(e)}")
+                
+    def send_frame(self):
+        """发送生成的帧"""
+        if self.serial and self.serial.is_open and self.current_frame:
+            try:
+                self.serial.write(self.current_frame)
+                self.log(f"已发送: {ProtocolFrameGenerator.frame_to_hex_string(self.current_frame)}")
+            except Exception as e:
+                self.log(f"发送错误: {str(e)}")
+        else:
+            self.log("错误: 串口未打开或未生成帧")
+            
+    def log(self, message):
+        """记录日志"""
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        self.log_edit.append(f"[{timestamp}] {message}")
+        # 自动滚动到底部
+        self.log_edit.moveCursor(self.log_edit.textCursor().End)
+
     def generate_frame(self):
         """生成协议帧"""
         # 获取帧基本信息
@@ -328,35 +422,43 @@ class FrameGeneratorWindow(QMainWindow):
             data.extend(self.data_entries[i].get_data())
         
         # 生成帧
-        frame = ProtocolFrameGenerator.generate_frame(cmd, param_id, data_len, data)
+        self.current_frame = ProtocolFrameGenerator.generate_frame(cmd, param_id, data_len, data)
+        
+        # 如果串口已打开，启用发送按钮
+        if self.serial and self.serial.is_open:
+            self.send_btn.setEnabled(True)
         
         # 显示结果
-        hex_str = ProtocolFrameGenerator.frame_to_hex_string(frame)
+        hex_str = ProtocolFrameGenerator.frame_to_hex_string(self.current_frame)
         self.hex_edit.setText(hex_str)
         
         # C语言数组格式
-        c_array = "uint8_t frame[] = {" + ', '.join(f'0x{b:02X}' for b in frame) + "};"
+        c_array = "uint8_t frame[] = {" + ', '.join(f'0x{b:02X}' for b in self.current_frame) + "};"
         self.c_array_edit.setText(c_array)
         
         # 详细信息
         detail = f"""
-帧长度: {len(frame)} 字节
-帧头 (SOF): 0x{frame[0]:02X}
-命令字 (CMD): 0x{frame[1]:02X} ({CMD_NAMES.get(cmd, "Unknown")})
-参数ID (PARAM_ID): 0x{frame[2]:02X} ({PARAM_NAMES.get(param_id, "Unknown")})
-数据长度 (DATA_LEN): {frame[3]}
-数据段: {' '.join(f'0x{b:02X}' for b in frame[4:16])}
-校验和 (CHECKSUM): 0x{frame[16]:02X}
-保留字节: 0x{frame[17]:02X} 0x{frame[18]:02X}
-帧尾 (EOF): 0x{frame[19]:02X}
+帧长度: {len(self.current_frame)} 字节
+帧头 (SOF): 0x{self.current_frame[0]:02X}
+命令字 (CMD): 0x{self.current_frame[1]:02X} ({CMD_NAMES.get(cmd, "Unknown")})
+参数ID (PARAM_ID): 0x{self.current_frame[2]:02X} ({PARAM_NAMES.get(param_id, "Unknown")})
+数据长度 (DATA_LEN): {self.current_frame[3]}
+数据段: {' '.join(f'0x{b:02X}' for b in self.current_frame[4:16])}
+校验和 (CHECKSUM): 0x{self.current_frame[16]:02X}
+保留字节: 0x{self.current_frame[17]:02X} 0x{self.current_frame[18]:02X}
+帧尾 (EOF): 0x{self.current_frame[19]:02X}
 """
         self.detail_edit.setText(detail.strip())
+        self.log(f"已生成帧: {hex_str}")
     
     def clear_output(self):
         """清除输出"""
         self.hex_edit.clear()
         self.c_array_edit.clear()
         self.detail_edit.clear()
+        self.log_edit.clear()
+        self.current_frame = None
+        self.send_btn.setEnabled(False)
 
 
 def main():
