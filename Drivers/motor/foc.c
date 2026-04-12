@@ -179,3 +179,22 @@ float cycle_diff(float diff, float cycle)
         diff += cycle;
     return diff;
 }
+
+void motor_control_init(void)
+{
+    // 转矩模式初始目标值
+    motor_control_context.torque_norm_d = 0;
+    motor_control_context.torque_norm_q = 0.4; // 百分比强度
+
+    // 位置模式初始目标值
+    motor_control_context.position = deg2rad(90);
+    
+    // 速度模式初始目标值
+    motor_control_context.speed = 10;
+
+    // 串级控制最大速度
+    motor_control_context.max_speed = 30;
+
+    // 串级控制最大转矩
+    motor_control_context.max_torque_norm = 0.4;
+}

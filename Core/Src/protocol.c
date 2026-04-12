@@ -12,10 +12,7 @@ static uint8_t g_rx_buffer[PROTOCOL_FRAME_LENGTH * 100];
 /* 协议初始化 */
 void protocol_init(void)
 {
-    // 使能串口2中断（如果 CubeMX 没生成）
-    HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(USART2_IRQn);
-    /* 启动串口接收中断，先接收1个字节 */
+    /* 启动串口接收中断，先接收PROTOCOL_FRAME_LENGTH个字节 */
     HAL_UART_Receive_IT(&huart2, g_rx_buffer, PROTOCOL_FRAME_LENGTH);
     
     /* 测试：发送初始化完成消息 */

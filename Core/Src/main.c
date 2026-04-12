@@ -157,37 +157,14 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  // 【电流模式】
-  motor_control_context.torque_norm_d = 0;
-  motor_control_context.torque_norm_q = 0.4; // 百分比强度
-  motor_control_context.type = control_type_torque;
-  // HAL_Delay(1000);
-
-  // 【位置（角度）模式】
-  // motor_control_context.position = deg2rad(90); // 上电时的角度当作0度
-  // // motor_control_context.position = deg2rad(90) - encoder_init_angle; // 编码器零位当作0度
-  // motor_control_context.type = control_type_position;
-
-  // 【速度模式】
-  // motor_control_context.speed = 30;       //每秒转30弧度
-  // motor_control_context.type = control_type_speed;
-
-  // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
-  
-  motor_control_context.speed = 10;       // 每秒30弧度
+  motor_control_init();
   motor_control_context.type = control_type_speed;
   while (1)
   {
-
-
-    // printf("hello world. \r\n");
-    // printf("%.3f\n", rad2deg(motor_logic_angle));
     HAL_Delay(g_blink_speed);
     // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 亮灯
     HAL_Delay(g_blink_speed);
     // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); // 灭灯
-
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
