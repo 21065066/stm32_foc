@@ -80,3 +80,5 @@
 
 .vscode
 RTE_Components.h
+
+.claude/*
