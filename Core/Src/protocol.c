@@ -140,6 +140,28 @@ uint8_t protocol_read_param(uint8_t param_id, uint8_t *data, uint8_t *data_len)
             len = 0;
             return ERR_UNKNOWN_PARAM_ID;
             
+        /* 目标值 */
+        case PARAM_CONTROL_TYPE:{
+            value = motor_control_context.type;
+            len = 4;
+        } break;
+        case PARAM_TARGET_POSITION:{    
+            value = (float)motor_control_context.position;
+            len = 4;
+        } break;
+        case PARAM_TARGET_SPEED:{    
+            value = (float)motor_control_context.speed;
+            len = 4;
+        } break;
+        case PARAM_TARGET_TORQUE_D:{    
+            value = (float)motor_control_context.torque_norm_d;
+            len = 4;
+        } break;
+        case PARAM_TARGET_TORQUE_Q:{    
+            value = (float)motor_control_context.torque_norm_q;
+            len = 4;
+        } break;
+
         /* 反馈值 */
         case PARAM_CURRENT_U:
             value = motor_i_u;
