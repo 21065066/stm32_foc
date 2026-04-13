@@ -13,8 +13,10 @@ from .serial_panel import SerialPanel
 from .param_panel import ParamPanel
 from .chart_panel import ChartPanel
 from .log_panel import LogPanel
+from .slider_config_dialog import SliderConfigDialog
 from protocol.handler import ProtocolHandler
 from protocol.constants import PARAMS, get_param_type, get_param_name
+from utils.config_manager import ConfigManager
 
 
 logger = logging.getLogger(__name__)
@@ -33,9 +35,13 @@ class MainWindow(QMainWindow):
         self.poll_timer = None
         self.current_poll_index = 0
 
+        # 配置管理器
+        self.config_manager = ConfigManager()
+
         self._init_ui()
         self._init_protocol()
         self._init_timers()
+        self._load_config()
 
     def _init_ui(self):
         """初始化UI"""
@@ -54,15 +60,20 @@ class MainWindow(QMainWindow):
         # 串口面板
         self.serial_panel = SerialPanel()
         self.serial_panel.connection_changed.connect(self._on_connection_changed)
+        self.serial_panel.btn_config.clicked.connect(self._on_open_slider_config)
         main_layout.addWidget(self.serial_panel)
+
+        # 加载滑动条范围配置
+        self.slider_ranges = self.config_manager.get_all_slider_ranges()
 
         # 创建分割器 (左右分栏)
         splitter = QSplitter(Qt.Horizontal)
 
         # 左侧: 参数面板 (60%)
-        self.param_panel = ParamPanel()
+        self.param_panel = ParamPanel(slider_ranges=self.slider_ranges)
         self.param_panel.read_requested.connect(self._on_read_requested)
         self.param_panel.write_requested.connect(self._on_write_requested)
+        self.param_panel.set_params_enabled(False)  # 初始状态禁用
         splitter.addWidget(self.param_panel)
 
         # 右侧: 图表面板 (40%)
@@ -90,17 +101,56 @@ class MainWindow(QMainWindow):
         self.poll_timer = QTimer()
         self.poll_timer.timeout.connect(self._poll_feedback)
 
+    def _load_config(self):
+        """加载配置"""
+        # 恢复串口设置
+        saved_port = self.config_manager.get_serial_port()
+        saved_baudrate = self.config_manager.get_baudrate()
+        if saved_port:
+            # 设置到serial_panel
+            index = self.serial_panel.port_combo.findData(saved_port)
+            if index >= 0:
+                self.serial_panel.port_combo.setCurrentIndex(index)
+        if saved_baudrate:
+            index = self.serial_panel.baud_combo.findText(str(saved_baudrate))
+            if index >= 0:
+                self.serial_panel.baud_combo.setCurrentIndex(index)
+
     def _on_connection_changed(self, is_connected):
         """连接状态改变"""
         if is_connected:
             self.protocol_handler.set_serial_port(self.serial_panel.get_serial_port())
             self.log_panel.append_info_log("串口连接成功")
+            # 保存串口设置
+            self.config_manager.set_serial_port(self.serial_panel.port_combo.currentData())
+            self.config_manager.set_baudrate(int(self.serial_panel.baud_combo.currentText()))
+            self.config_manager.save()
+            # 加载保存的参数值到界面
+            self._load_saved_params()
         else:
             self._stop_polling()
             self.log_panel.append_info_log("串口已断开")
 
         # 更新参数面板控件状态
         self.param_panel.set_params_enabled(is_connected)
+
+    def _load_saved_params(self):
+        """加载保存的参数值到界面"""
+        saved_params = self.config_manager.get_all_params()
+        for param_id, value in saved_params.items():
+            # 只更新非只读参数
+            from protocol.constants import is_readonly
+            if not is_readonly(param_id):
+                self.param_panel.update_param_value(param_id, value)
+
+    def _on_open_slider_config(self):
+        """打开滑动条配置对话框"""
+        dialog = SliderConfigDialog(self.config_manager, self)
+        if dialog.exec_():
+            # 保存并更新
+            self.slider_ranges = self.config_manager.get_all_slider_ranges()
+            self.param_panel.update_slider_ranges(self.slider_ranges)
+            self.log_panel.append_info_log("滑动条范围配置已保存")
 
     def _on_read_requested(self, param_id):
         """读取参数请求"""
@@ -129,9 +179,10 @@ class MainWindow(QMainWindow):
         frame = self.protocol_handler.build_write_frame(param_id, value, data_type)
         self.serial_panel.write_data(frame)
         self.log_panel.append_send_log(frame)
-
-        # 等待响应
-        self._wait_for_response(param_id, timeout=2.0, is_write=True)
+        # 设置参数不等待响应
+        # 保存参数值到配置
+        self.config_manager.set_param(param_id, value)
+        self.config_manager.save()
 
     def _wait_for_response(self, param_id, timeout=2.0, is_write=False):
         """等待响应"""
@@ -218,4 +269,5 @@ class MainWindow(QMainWindow):
         """关闭窗口事件"""
         self._stop_polling()
         self.serial_panel.get_serial_port().close()
+        self.config_manager.save()
         event.accept()

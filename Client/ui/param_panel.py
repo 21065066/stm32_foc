@@ -16,9 +16,15 @@ class ParamPanel(QWidget):
     read_requested = pyqtSignal(int)      # 读取参数请求 (param_id)
     write_requested = pyqtSignal(int, object)  # 写入参数请求 (param_id, value)
 
-    def __init__(self, parent=None):
+    def __init__(self, slider_ranges=None, parent=None):
+        """初始化参数面板
+
+        Args:
+            slider_ranges: dict, param_id -> (min, max) 滑动条范围配置
+        """
         super().__init__(parent)
         self.param_widgets = {}  # param_id -> ParamWidget
+        self.slider_ranges = slider_ranges or {}
         self._init_ui()
 
     def _init_ui(self):
@@ -67,7 +73,9 @@ class ParamPanel(QWidget):
                      (0x09, "多圈周期", "float")]
 
         for param_id, name, dtype in hw_params:
-            widget = ParamWidget(param_id, name, dtype, is_readonly=False)
+            slider_range = self.slider_ranges.get(param_id)
+            widget = ParamWidget(param_id, name, dtype, is_readonly=False,
+                               slider_range=slider_range)
             widget.read_clicked.connect(self._on_read_clicked)
             widget.write_clicked.connect(self._on_write_clicked)
             layout.addWidget(widget)
@@ -110,7 +118,9 @@ class ParamPanel(QWidget):
                          (0x45, "目标转矩Q轴", "float")]
 
         for param_id, name, dtype in target_params:
-            widget = ParamWidget(param_id, name, dtype, is_readonly=False)
+            slider_range = self.slider_ranges.get(param_id)
+            widget = ParamWidget(param_id, name, dtype, is_readonly=False,
+                               slider_range=slider_range)
             widget.read_clicked.connect(self._on_read_clicked)
             widget.write_clicked.connect(self._on_write_clicked)
             layout.addWidget(widget)
@@ -173,3 +183,14 @@ class ParamPanel(QWidget):
     def get_param_widget(self, param_id):
         """获取指定参数ID的控件"""
         return self.param_widgets.get(param_id)
+
+    def update_slider_ranges(self, slider_ranges):
+        """更新滑动条范围
+
+        Args:
+            slider_ranges: dict, param_id -> (min, max)
+        """
+        self.slider_ranges = slider_ranges
+        for param_id, widget in self.param_widgets.items():
+            if param_id in slider_ranges:
+                widget.update_slider_range(slider_ranges[param_id])

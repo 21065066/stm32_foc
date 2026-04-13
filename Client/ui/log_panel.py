@@ -61,20 +61,20 @@ class LogPanel(QWidget):
         """
         time_str = self._get_current_time()
 
-        if isinstance(data, bytes):
+        if isinstance(data, (bytes, bytearray)):
             data_str = self._format_hex(data)
         else:
             data_str = str(data)
 
-        # 确定颜色
+        # 确定颜色 (深色背景下使用亮色)
         if log_type == self.LOG_SEND:
-            color = "#0000FF"  # 蓝色
+            color = "#00FFFF"  # 青色 (发送)
         elif log_type == self.LOG_RECEIVE:
-            color = "#008800"  # 深绿色
+            color = "#00FF00"  # 绿色 (接收)
         elif log_type == self.LOG_ERROR:
-            color = "#FF0000"  # 红色
+            color = "#FF6666"  # 浅红色 (错误)
         else:
-            color = "#FFFFFF"  # 白色
+            color = "#FFFFFF"  # 白色 (信息)
 
         # 构建日志行
         log_line = f'<span style="color: #888888;">{time_str}</span> '

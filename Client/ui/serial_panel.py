@@ -79,6 +79,11 @@ class SerialPanel(QWidget):
 
         layout.addStretch()
 
+        # 滑动条配置按钮
+        self.btn_config = QPushButton("滑动条配置")
+        self.btn_config.setFixedWidth(100)
+        layout.addWidget(self.btn_config)
+
     def _refresh_ports(self):
         """刷新串口列表"""
         self.port_combo.clear()
@@ -122,6 +127,7 @@ class SerialPanel(QWidget):
             self.btn_disconnect.setEnabled(True)
             self.port_combo.setEnabled(False)
             self.baud_combo.setEnabled(False)
+            self.btn_refresh.setEnabled(False)
         else:
             self.status_indicator.setStyleSheet("background-color: #FF0000; border-radius: 6px;")
             self.status_label.setText("未连接")
@@ -129,6 +135,7 @@ class SerialPanel(QWidget):
             self.btn_disconnect.setEnabled(False)
             self.port_combo.setEnabled(True)
             self.baud_combo.setEnabled(True)
+            self.btn_refresh.setEnabled(True)
 
         self.connection_changed.emit(connected)
 

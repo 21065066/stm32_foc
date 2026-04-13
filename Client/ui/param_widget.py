@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """参数行组件"""
 
-from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel, QLineEdit,
-                             QPushButton, QSpinBox, QDoubleSpinBox)
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import (QWidget, QHBoxLayout, QLabel,
+                             QPushButton, QSpinBox, QDoubleSpinBox, QSlider)
+from PyQt5.QtCore import pyqtSignal, Qt
 
 
 class ParamWidget(QWidget):
@@ -12,6 +12,7 @@ class ParamWidget(QWidget):
     每个参数行组件包含:
     - label_name: 参数名称 (左侧固定宽度)
     - spin_box: 参数值输入框 (中间自适应)
+    - slider: 滑动条 (可选)
     - btn_read: 读取按钮
     - btn_write: 设置按钮 (只读参数无此按钮)
     """
@@ -19,12 +20,24 @@ class ParamWidget(QWidget):
     read_clicked = pyqtSignal(int)  # param_id
     write_clicked = pyqtSignal(int, object)  # param_id, value
 
-    def __init__(self, param_id, param_name, data_type, is_readonly=False, parent=None):
+    def __init__(self, param_id, param_name, data_type, is_readonly=False,
+                 slider_range=None, parent=None):
+        """初始化参数行组件
+
+        Args:
+            param_id: 参数ID
+            param_name: 参数名称
+            data_type: 数据类型 ("int", "float", "float×3")
+            is_readonly: 是否只读
+            slider_range: 滑动条范围 tuple(min, max)，如 (0, 300)，None表示不使用滑动条
+        """
         super().__init__(parent)
         self.param_id = param_id
         self.param_name = param_name
         self.data_type = data_type
         self.is_readonly = is_readonly
+        self.slider_range = slider_range
+        self.slider = None
 
         self._init_ui()
 
@@ -63,6 +76,19 @@ class ParamWidget(QWidget):
         self.spin_box.setButtonSymbols(QSpinBox.NoButtons)
         layout.addWidget(self.spin_box)
 
+        # 如果有滑动条范围，添加滑动条
+        if self.slider_range is not None and not self.is_readonly:
+            min_val, max_val = self.slider_range
+            self.slider = QSlider(Qt.Horizontal)
+            self.slider.setFixedWidth(150)
+            self.slider.setRange(int(min_val), int(max_val))
+            # 同步滑动条和spinbox
+            self.spin_box.valueChanged.connect(self._on_spinbox_value_changed)
+            self.slider.valueChanged.connect(self._on_slider_value_changed)
+            # 滑动释放时发送设置命令
+            self.slider.sliderReleased.connect(self._on_slider_released)
+            layout.addWidget(self.slider)
+
         # 读取按钮
         self.btn_read = QPushButton("读取")
         self.btn_read.setFixedWidth(60)
@@ -79,6 +105,29 @@ class ParamWidget(QWidget):
             self.btn_write = None
 
         layout.addStretch()
+
+    def _on_spinbox_value_changed(self, value):
+        """spinbox值改变时同步滑动条"""
+        if self.slider is not None:
+            self.slider.blockSignals(True)
+            self.slider.setValue(int(value))
+            self.slider.blockSignals(False)
+
+    def _on_slider_value_changed(self, value):
+        """滑动条值改变时同步spinbox"""
+        if self.data_type == 'float':
+            self.spin_box.blockSignals(True)
+            self.spin_box.setValue(float(value))
+            self.spin_box.blockSignals(False)
+        else:
+            self.spin_box.blockSignals(True)
+            self.spin_box.setValue(value)
+            self.spin_box.blockSignals(False)
+
+    def _on_slider_released(self):
+        """滑动条释放时发送设置命令"""
+        value = self.spin_box.value()
+        self.write_clicked.emit(self.param_id, value)
 
     def _init_float3_ui(self, layout):
         """初始化 float×3 类型参数的UI"""
@@ -181,6 +230,19 @@ class ParamWidget(QWidget):
             self.kd_spin.setEnabled(enabled)
         else:
             self.spin_box.setEnabled(enabled)
+        if self.slider is not None:
+            self.slider.setEnabled(enabled)
         self.btn_read.setEnabled(enabled)
         if self.btn_write:
             self.btn_write.setEnabled(enabled)
+
+    def update_slider_range(self, range_tuple):
+        """更新滑动条范围
+
+        Args:
+            range_tuple: (min, max)
+        """
+        if self.slider is not None and range_tuple is not None:
+            min_val, max_val = range_tuple
+            self.slider.setRange(int(min_val), int(max_val))
+            self.spin_box.setRange(min_val, max_val)
