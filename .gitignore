@@ -82,3 +82,6 @@
 RTE_Components.h
 
 .claude/*
+
+Client/ui/__pycache__/*
+Client/utils/__pycache__/*

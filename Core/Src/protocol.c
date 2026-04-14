@@ -5,6 +5,7 @@
 #include "main.h"
 #include <string.h>
 #include <stdio.h>
+#include "../../Drivers/motor/foc.h"
 
 /* 协议接收缓冲区 */
 static uint8_t g_rx_buffer[PROTOCOL_FRAME_LENGTH * 100];
@@ -71,140 +72,157 @@ void protocol_send_error(uint8_t param_id, uint8_t error_code)
 /* 读取参数 */
 uint8_t protocol_read_param(uint8_t param_id, uint8_t *data, uint8_t *data_len)
 {
-    float value = 0;
+    uint8_t value[12] = {0};
     uint8_t len = 0;
     
     switch (param_id)
     {
         /* 硬件参数 */
         case PARAM_POLE_PAIRS:
-            value = (float)POLE_PAIRS;
+            memcpy(value, &POLE_PAIRS, sizeof(POLE_PAIRS));
             len = 4;
             break;
             
         case PARAM_SHUNT_RESISTANCE:
-            value = R_SHUNT;
+            memcpy(value, &R_SHUNT, sizeof(R_SHUNT));
             len = 4;
             break;
             
         case PARAM_OP_GAIN:
-            value = OP_GAIN;
+            memcpy(value, &OP_GAIN, sizeof(OP_GAIN));
             len = 4;
             break;
             
         case PARAM_MAX_CURRENT:
-            value = MAX_CURRENT;
+            memcpy(value, &MAX_CURRENT, sizeof(MAX_CURRENT));
             len = 4;
             break;
             
         case PARAM_ADC_REFERENCE:
-            value = ADC_REFERENCE_VOLT;
+            memcpy(value, &ADC_REFERENCE_VOLT, sizeof(ADC_REFERENCE_VOLT));
             len = 4;
             break;
             
         case PARAM_PWM_FREQUENCY:
-            value = (float)motor_pwm_freq;
+            memcpy(value, &motor_pwm_freq, sizeof(motor_pwm_freq));
             len = 4;
             break;
             
         case PARAM_SPEED_CALC_FREQ:
-            value = (float)motor_speed_calc_freq;
+            memcpy(value, &motor_speed_calc_freq, sizeof(motor_speed_calc_freq));
             len = 4;
             break;
             
         case PARAM_ADC_BITS:
-            value = (float)ADC_BITS;
+            memcpy(value, &ADC_BITS, sizeof(ADC_BITS));
             len = 4;
             break;
             
         case PARAM_POSITION_CYCLE:
-            value = position_cycle;
+            memcpy(value, &position_cycle, sizeof(position_cycle));
             len = 4;
             break;
             
         /* PID参数 */
-        case PARAM_POSITION_PID:
-            /* 需要从PID实例中读取，暂未实现 */
-            len = 0;
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_POSITION_PID:{
+            float position_p = 0, position_i = 0, position_d = 0;
+            get_position_pid(&position_p, &position_i, &position_d);
+            memcpy(value, &position_p, sizeof(position_p));
+            memcpy(value + 4, &position_i, sizeof(position_i)); 
+            memcpy(value + 8, &position_d, sizeof(position_d));
+            len = 12;
+        } break;
             
-        case PARAM_SPEED_PID:
-            len = 0;
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_SPEED_PID:{
+            float speed_p = 0, speed_i = 0, speed_d = 0;
+            get_speed_pid(&speed_p, &speed_i, &speed_d);
+            memcpy(value, &speed_p, sizeof(speed_p));
+            memcpy(value + 4, &speed_i, sizeof(speed_i)); 
+            memcpy(value + 8, &speed_d, sizeof(speed_d));
+            len = 12;
+        } break;
             
-        case PARAM_TORQUE_D_PID:
-            len = 0;
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_TORQUE_D_PID:{
+            float torque_d_p = 0, torque_d_i = 0, torque_d_d = 0;
+            get_torque_d_pid(&torque_d_p, &torque_d_i, &torque_d_d);
+            memcpy(value, &torque_d_p, sizeof(torque_d_p));
+            memcpy(value + 4, &torque_d_i, sizeof(torque_d_i)); 
+            memcpy(value + 8, &torque_d_d, sizeof(torque_d_d));
+            len = 12;
+        } break;
             
-        case PARAM_TORQUE_Q_PID:
-            len = 0;
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_TORQUE_Q_PID:{
+            float torque_q_p = 0, torque_q_i = 0, torque_q_d = 0;
+            get_torque_q_pid(&torque_q_p, &torque_q_i, &torque_q_d);
+            memcpy(value, &torque_q_p, sizeof(torque_q_p));
+            memcpy(value + 4, &torque_q_i, sizeof(torque_q_i)); 
+            memcpy(value + 8, &torque_q_d, sizeof(torque_q_d));
+            len = 12;
+        } break;
             
         /* 目标值 */
         case PARAM_CONTROL_TYPE:{
-            value = motor_control_context.type;
+            memcpy(value, &motor_control_context.type, sizeof(motor_control_context.type));
             len = 4;
         } break;
         case PARAM_TARGET_POSITION:{    
-            value = (float)motor_control_context.position;
+            memcpy(value, &motor_control_context.position, sizeof(motor_control_context.position));
             len = 4;
         } break;
         case PARAM_TARGET_SPEED:{    
-            value = (float)motor_control_context.speed;
+            memcpy(value, &motor_control_context.speed, sizeof(motor_control_context.speed));
             len = 4;
         } break;
         case PARAM_TARGET_TORQUE_D:{    
-            value = (float)motor_control_context.torque_norm_d;
+            memcpy(value, &motor_control_context.torque_norm_d, sizeof(motor_control_context.torque_norm_d));
             len = 4;
         } break;
         case PARAM_TARGET_TORQUE_Q:{    
-            value = (float)motor_control_context.torque_norm_q;
+            memcpy(value, &motor_control_context.torque_norm_q, sizeof(motor_control_context.torque_norm_q));
             len = 4;
         } break;
 
         /* 反馈值 */
         case PARAM_CURRENT_U:
-            value = motor_i_u;
+            memcpy(value, &motor_i_u, sizeof(motor_i_u));
             len = 4;
             break;
             
         case PARAM_CURRENT_V:
-            value = motor_i_v;
+            memcpy(value, &motor_i_v, sizeof(motor_i_v));
             len = 4;
             break;
             
         case PARAM_CURRENT_D:
-            value = motor_i_d;
+            memcpy(value, &motor_i_d, sizeof(motor_i_d));
             len = 4;
             break;
-            
         case PARAM_CURRENT_Q:
-            value = motor_i_q;
+            memcpy(value, &motor_i_q, sizeof(motor_i_q));
             len = 4;
             break;
-            
         case PARAM_MOTOR_SPEED:
-            value = motor_speed;
+            memcpy(value, &motor_speed, sizeof(motor_speed));
             len = 4;
             break;
             
         case PARAM_MOTOR_ANGLE:
-            value = motor_logic_angle;
+            memcpy(value, &motor_logic_angle, sizeof(motor_logic_angle));
             len = 4;
             break;
             
         case PARAM_ENCODER_ANGLE:
-            value = encoder_angle;
+            memcpy(value, &encoder_angle, sizeof(encoder_angle));
             len = 4;
             break;
             
         case PARAM_ENCODER_INIT_ANGLE:
-            value = encoder_init_angle;
+            memcpy(value, &encoder_init_angle, sizeof(encoder_init_angle));
             len = 4;
             break;
             
         case PARAM_ROTOR_ZERO_ANGLE:
-            value = rotor_zero_angle;
+            memcpy(value, &rotor_zero_angle, sizeof(rotor_zero_angle));
             len = 4;
             break;
             
@@ -239,80 +257,91 @@ uint8_t protocol_write_param(uint8_t param_id, uint8_t *data, uint8_t data_len)
     switch (param_id)
     {
         /* 硬件参数 */
-        case PARAM_POLE_PAIRS:
-            POLE_PAIRS = valueInt[0];
-            break;
+        case PARAM_POLE_PAIRS: {
+            memcpy(&POLE_PAIRS, &valueInt[0], sizeof(int32_t));
+        } break;
             
-        case PARAM_SHUNT_RESISTANCE:
-            R_SHUNT = valueFloat[0];
-            break;
+        case PARAM_SHUNT_RESISTANCE: {
+            memcpy(&R_SHUNT, &valueFloat[0], sizeof(float));
+        } break;
             
-        case PARAM_OP_GAIN:
-            OP_GAIN = valueFloat[0];
-            break;
+        case PARAM_OP_GAIN: {
+            memcpy(&OP_GAIN, &valueFloat[0], sizeof(float));
+        } break;
             
-        case PARAM_MAX_CURRENT:
-            MAX_CURRENT = valueInt[0];;
-            break;
+        case PARAM_MAX_CURRENT: {
+            memcpy(&MAX_CURRENT, &valueInt[0], sizeof(int32_t));
+        } break;
             
-        case PARAM_ADC_REFERENCE:
-            ADC_REFERENCE_VOLT = valueFloat[0];
-            break;
+        case PARAM_ADC_REFERENCE: {
+            memcpy(&ADC_REFERENCE_VOLT, &valueFloat[0], sizeof(float));
+        } break;
             
-        case PARAM_PWM_FREQUENCY:
-            motor_pwm_freq = valueFloat[0];
-            break;
+        case PARAM_PWM_FREQUENCY: {
+            memcpy(&motor_pwm_freq, &valueFloat[0], sizeof(float));
+        } break;
             
-        case PARAM_SPEED_CALC_FREQ:
-            motor_speed_calc_freq = valueFloat[0];
-            break;
+        case PARAM_SPEED_CALC_FREQ: {
+            memcpy(&motor_speed_calc_freq, &valueFloat[0], sizeof(float));
+        } break;
             
-        case PARAM_ADC_BITS:
-            ADC_BITS = valueInt[0];
-            break;
+        case PARAM_ADC_BITS: {
+            memcpy(&ADC_BITS, &valueInt[0], sizeof(int32_t));
+        } break;
             
-        case PARAM_POSITION_CYCLE:
-            position_cycle = valueFloat[0];
-            break;
+        case PARAM_POSITION_CYCLE: {
+            memcpy(&position_cycle, &valueFloat[0], sizeof(float));
+        } break;
             
         /* PID参数 */
-        case PARAM_POSITION_PID:
-            set_position_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_POSITION_PID: {
+            float position_p = 0, position_i = 0, position_d = 0;
+            memcpy(&position_p, &valueFloat[0], sizeof(float));
+            memcpy(&position_i, &valueFloat[1], sizeof(float));
+            memcpy(&position_d, &valueFloat[2], sizeof(float));
+            set_position_pid(position_p, position_i, position_d);
+        } break;
+        case PARAM_SPEED_PID: {
+            float speed_p = 0, speed_i = 0, speed_d = 0;
+            memcpy(&speed_p, &valueFloat[0], sizeof(float));
+            memcpy(&speed_i, &valueFloat[1], sizeof(float));
+            memcpy(&speed_d, &valueFloat[2], sizeof(float));
+            set_speed_pid(speed_p, speed_i, speed_d);
+        } break;
             
-        case PARAM_SPEED_PID:
-            set_speed_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_TORQUE_D_PID: {
+            float torque_d_p = 0, torque_d_i = 0, torque_d_d = 0;
+            memcpy(&torque_d_p, &valueFloat[0], sizeof(float));
+            memcpy(&torque_d_i, &valueFloat[1], sizeof(float));
+            memcpy(&torque_d_d, &valueFloat[2], sizeof(float));
+            set_torque_d_pid(torque_d_p, torque_d_i, torque_d_d);
+        } break;
             
-        case PARAM_TORQUE_D_PID:
-            set_torque_d_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
-            return ERR_UNKNOWN_PARAM_ID;
-            
-        case PARAM_TORQUE_Q_PID:
-            set_torque_q_pid(valueFloat[0], valueFloat[1], valueFloat[2]);
-            return ERR_UNKNOWN_PARAM_ID;
+        case PARAM_TORQUE_Q_PID: {
+            float torque_q_p = 0, torque_q_i = 0, torque_q_d = 0;
+            memcpy(&torque_q_p, &valueFloat[0], sizeof(float));
+            memcpy(&torque_q_i, &valueFloat[1], sizeof(float));
+            memcpy(&torque_q_d, &valueFloat[2], sizeof(float));
+            set_torque_q_pid(torque_q_p, torque_q_i, torque_q_d);
+        } break;
             
         /* 目标值 */
-        case PARAM_CONTROL_TYPE:
-            motor_control_context.type = (motor_control_type)valueFloat[0];
-            break;
-            
-        case PARAM_TARGET_POSITION:
-            motor_control_context.position = valueFloat[0];
-            break;
-            
-        case PARAM_TARGET_SPEED:
-            motor_control_context.speed = valueFloat[0];
-            break;
-            
+        case PARAM_CONTROL_TYPE: {
+            memcpy(&motor_control_context.type, &valueInt[0], sizeof(motor_control_context.type));
+        } break;
+        case PARAM_TARGET_POSITION: {
+            memcpy(&motor_control_context.position, &valueFloat[0], sizeof(float));
+        } break;
+        case PARAM_TARGET_SPEED: {
+            memcpy(&motor_control_context.speed, &valueFloat[0], sizeof(float));
+        } break;
         case PARAM_TARGET_TORQUE_D: {
-            motor_control_context.torque_norm_d = valueFloat[0];
+            memcpy(&motor_control_context.torque_norm_d, &valueFloat[0], sizeof(float));
 		} break;
             
-        case PARAM_TARGET_TORQUE_Q:
-            motor_control_context.torque_norm_q = valueFloat[0];
-            break;
-            
+        case PARAM_TARGET_TORQUE_Q: {
+            memcpy(&motor_control_context.torque_norm_q, &valueFloat[0], sizeof(float));
+        } break;   
         default:
             return ERR_UNKNOWN_PARAM_ID;
     }

@@ -198,3 +198,24 @@ void motor_control_init(void)
     // 串级控制最大转矩
     motor_control_context.max_torque_norm = 0.4;
 }
+
+void get_position_pid(float *position_p, float *position_i, float *position_d){
+    *position_p = pid_position.Kp;
+    *position_i = pid_position.Ki;
+    *position_d = pid_position.Kd;
+}
+void get_speed_pid(float *speed_p, float *speed_i, float *speed_d){
+    *speed_p = pid_speed.Kp;
+    *speed_i = pid_speed.Ki;
+    *speed_d = pid_speed.Kd;
+}
+void get_torque_d_pid(float *torque_d_p, float *torque_d_i , float *torque_d_d){
+    *torque_d_p = pid_torque_d.Kp;
+    *torque_d_i = pid_torque_d.Ki;
+    *torque_d_d = pid_torque_d.Kd;
+}
+void get_torque_q_pid(float *torque_q_p, float *torque_q_i, float *torque_q_d){ 
+    *torque_q_p = pid_torque_q.Kp;
+    *torque_q_i = pid_torque_q.Ki;
+    *torque_q_d = pid_torque_q.Kd;
+}
