@@ -21,7 +21,7 @@ class ParamWidget(QWidget):
     write_clicked = pyqtSignal(int, object)  # param_id, value
 
     def __init__(self, param_id, param_name, data_type, is_readonly=False,
-                 slider_range=None, parent=None):
+                 slider_range=None, slider_step=None, parent=None):
         """初始化参数行组件
 
         Args:
@@ -30,6 +30,7 @@ class ParamWidget(QWidget):
             data_type: 数据类型 ("int", "float", "float×3")
             is_readonly: 是否只读
             slider_range: 滑动条范围 tuple(min, max)，如 (0, 300)，None表示不使用滑动条
+            slider_step: 滑动条步长，默认1(int)或0.1(float)
         """
         super().__init__(parent)
         self.param_id = param_id
@@ -37,6 +38,7 @@ class ParamWidget(QWidget):
         self.data_type = data_type
         self.is_readonly = is_readonly
         self.slider_range = slider_range
+        self.slider_step = slider_step
         self.slider = None
 
         self._init_ui()
@@ -66,14 +68,17 @@ class ParamWidget(QWidget):
             self.spin_box.setFixedWidth(100)
             # 设置范围
             self.spin_box.setRange(-2147483648, 2147483647)
+            step = self.slider_step if self.slider_step is not None else 1
         else:  # float
             self.spin_box = QDoubleSpinBox()
             self.spin_box.setFixedWidth(100)
             # 设置范围和精度
             self.spin_box.setRange(-1e9, 1e9)
             self.spin_box.setDecimals(4)
+            step = self.slider_step if self.slider_step is not None else 0.1
 
         self.spin_box.setButtonSymbols(QSpinBox.NoButtons)
+        self.spin_box.setSingleStep(step)
         layout.addWidget(self.spin_box)
 
         # 如果有滑动条范围，添加滑动条
@@ -82,6 +87,7 @@ class ParamWidget(QWidget):
             self.slider = QSlider(Qt.Horizontal)
             self.slider.setFixedWidth(150)
             self.slider.setRange(int(min_val), int(max_val))
+            self.slider.setSingleStep(int(step))
             # 同步滑动条和spinbox
             self.spin_box.valueChanged.connect(self._on_spinbox_value_changed)
             self.slider.valueChanged.connect(self._on_slider_value_changed)
@@ -246,3 +252,25 @@ class ParamWidget(QWidget):
             min_val, max_val = range_tuple
             self.slider.setRange(int(min_val), int(max_val))
             self.spin_box.setRange(min_val, max_val)
+
+    def update_slider_step(self, step):
+        """更新滑动条步长
+
+        Args:
+            step: 步长值
+        """
+        if step is not None:
+            self.slider_step = step
+            self.spin_box.setSingleStep(step)
+            if self.slider is not None:
+                self.slider.setSingleStep(int(step))
+
+    def update_slider_config(self, range_tuple, step):
+        """更新滑动条范围和步长
+
+        Args:
+            range_tuple: (min, max)
+            step: 步长值
+        """
+        self.update_slider_range(range_tuple)
+        self.update_slider_step(step)

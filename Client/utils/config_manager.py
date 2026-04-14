@@ -124,3 +124,34 @@ class ConfigManager:
                 if isinstance(value, list) and len(value) == 2:
                     ranges[param_id] = tuple(value)
         return ranges
+
+    def get_slider_step(self, param_id, default=1):
+        """获取滑动条步长
+
+        Args:
+            param_id: 参数ID
+            default: 默认步长
+
+        Returns:
+            float: 步长值
+        """
+        return self.get(f'slider_step_{param_id:02X}', default)
+
+    def set_slider_step(self, param_id, step):
+        """设置滑动条步长
+
+        Args:
+            param_id: 参数ID
+            step: 步长值
+        """
+        self.set(f'slider_step_{param_id:02X}', step)
+
+    def get_all_slider_steps(self):
+        """获取所有滑动条步长配置"""
+        steps = {}
+        prefix = 'slider_step_'
+        for key, value in self.config.items():
+            if key.startswith(prefix):
+                param_id = int(key[len(prefix):], 16)
+                steps[param_id] = value
+        return steps

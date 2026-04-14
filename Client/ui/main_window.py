@@ -63,14 +63,16 @@ class MainWindow(QMainWindow):
         self.serial_panel.btn_config.clicked.connect(self._on_open_slider_config)
         main_layout.addWidget(self.serial_panel)
 
-        # 加载滑动条范围配置
+        # 加载滑动条范围和步长配置
         self.slider_ranges = self.config_manager.get_all_slider_ranges()
+        self.slider_steps = self.config_manager.get_all_slider_steps()
 
         # 创建分割器 (左右分栏)
         splitter = QSplitter(Qt.Horizontal)
 
         # 左侧: 参数面板 (60%)
-        self.param_panel = ParamPanel(slider_ranges=self.slider_ranges)
+        self.param_panel = ParamPanel(slider_ranges=self.slider_ranges,
+                                    slider_steps=self.slider_steps)
         self.param_panel.read_requested.connect(self._on_read_requested)
         self.param_panel.write_requested.connect(self._on_write_requested)
         self.param_panel.set_params_enabled(False)  # 初始状态禁用
@@ -149,8 +151,9 @@ class MainWindow(QMainWindow):
         if dialog.exec_():
             # 保存并更新
             self.slider_ranges = self.config_manager.get_all_slider_ranges()
-            self.param_panel.update_slider_ranges(self.slider_ranges)
-            self.log_panel.append_info_log("滑动条范围配置已保存")
+            self.slider_steps = self.config_manager.get_all_slider_steps()
+            self.param_panel.update_slider_configs(self.slider_ranges, self.slider_steps)
+            self.log_panel.append_info_log("滑动条范围和步长配置已保存")
 
     def _on_read_requested(self, param_id):
         """读取参数请求"""

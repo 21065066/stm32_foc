@@ -16,15 +16,17 @@ class ParamPanel(QWidget):
     read_requested = pyqtSignal(int)      # 读取参数请求 (param_id)
     write_requested = pyqtSignal(int, object)  # 写入参数请求 (param_id, value)
 
-    def __init__(self, slider_ranges=None, parent=None):
+    def __init__(self, slider_ranges=None, slider_steps=None, parent=None):
         """初始化参数面板
 
         Args:
             slider_ranges: dict, param_id -> (min, max) 滑动条范围配置
+            slider_steps: dict, param_id -> step 滑动条步长配置
         """
         super().__init__(parent)
         self.param_widgets = {}  # param_id -> ParamWidget
         self.slider_ranges = slider_ranges or {}
+        self.slider_steps = slider_steps or {}
         self._init_ui()
 
     def _init_ui(self):
@@ -74,8 +76,9 @@ class ParamPanel(QWidget):
 
         for param_id, name, dtype in hw_params:
             slider_range = self.slider_ranges.get(param_id)
+            slider_step = self.slider_steps.get(param_id)
             widget = ParamWidget(param_id, name, dtype, is_readonly=False,
-                               slider_range=slider_range)
+                               slider_range=slider_range, slider_step=slider_step)
             widget.read_clicked.connect(self._on_read_clicked)
             widget.write_clicked.connect(self._on_write_clicked)
             layout.addWidget(widget)
@@ -119,8 +122,9 @@ class ParamPanel(QWidget):
 
         for param_id, name, dtype in target_params:
             slider_range = self.slider_ranges.get(param_id)
+            slider_step = self.slider_steps.get(param_id)
             widget = ParamWidget(param_id, name, dtype, is_readonly=False,
-                               slider_range=slider_range)
+                               slider_range=slider_range, slider_step=slider_step)
             widget.read_clicked.connect(self._on_read_clicked)
             widget.write_clicked.connect(self._on_write_clicked)
             layout.addWidget(widget)
@@ -184,13 +188,17 @@ class ParamPanel(QWidget):
         """获取指定参数ID的控件"""
         return self.param_widgets.get(param_id)
 
-    def update_slider_ranges(self, slider_ranges):
-        """更新滑动条范围
+    def update_slider_configs(self, slider_ranges, slider_steps):
+        """更新滑动条范围和步长
 
         Args:
             slider_ranges: dict, param_id -> (min, max)
+            slider_steps: dict, param_id -> step
         """
         self.slider_ranges = slider_ranges
+        self.slider_steps = slider_steps
         for param_id, widget in self.param_widgets.items():
-            if param_id in slider_ranges:
-                widget.update_slider_range(slider_ranges[param_id])
+            range_val = slider_ranges.get(param_id)
+            step_val = slider_steps.get(param_id)
+            if range_val is not None or step_val is not None:
+                widget.update_slider_config(range_val, step_val)
