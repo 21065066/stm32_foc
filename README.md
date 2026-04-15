@@ -10,3 +10,11 @@
 
 
 板子不提供5V输出，防止损坏电脑USB口，供电方式为DC12V、右侧5V（若搭配本项目daplink，插typec即可供电5V）。
+
+电机相关参数
+
+![Image](https://github.com/user-attachments/assets/0c1d9d03-55dc-46db-bed3-e02d50baf24d)
+
+![Image](https://github.com/user-attachments/assets/005fcf03-fbf3-4d38-b6c6-502f8a9323ed)
+
+![Image](https://github.com/user-attachments/assets/accef692-bea7-40b4-ad75-00d92184815c)
