@@ -85,3 +85,4 @@ RTE_Components.h
 
 Client/ui/__pycache__/*
 Client/utils/__pycache__/*
+*.pyc
