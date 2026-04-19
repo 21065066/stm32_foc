@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """图表面板"""
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QGroupBox
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QPushButton, QGroupBox, QLabel
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+import time
 
 import pyqtgraph as pg
 import numpy as np
@@ -13,11 +14,17 @@ from data.data_collector import DataCollector
 class ChartPanel(QWidget):
     """图表面板 - 实时曲线显示"""
 
+    # 信号: 采集状态改变 (is_collecting)
+    collection_changed = pyqtSignal(bool)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
         self.data_collector = DataCollector(max_points=1000)
         self.is_collecting = False
+
+        # 反馈数据缓存（用于定时刷新）
+        self._feedback_cache = {}
 
         # 曲线配置
         self.curve_colors = {
@@ -78,6 +85,12 @@ class ChartPanel(QWidget):
         # 创建复选框
         default_visible = ['motor_speed', 'current_d', 'current_q']
         for key, name in self.curve_names.items():
+            # 颜色方块
+            color_box = QLabel()
+            color_box.setFixedSize(15, 15)
+            color_box.setStyleSheet(f"background-color: {self.curve_colors[key]}; border: 1px solid #555;")
+            selector_layout.addWidget(color_box)
+
             cb = QCheckBox(name)
             cb.setChecked(key in default_visible)
             cb.stateChanged.connect(lambda state, k=key: self._on_curve_toggled(k, state))
@@ -116,14 +129,28 @@ class ChartPanel(QWidget):
         self.is_collecting = True
         self.data_collector.clear()
         self.data_collector.set_start_time(None)  # 重置起始时间
+        self._feedback_cache = {}  # 清空缓存
         self.btn_start.setEnabled(False)
         self.btn_stop.setEnabled(True)
+        # 禁用曲线选择复选框
+        for cb in self.checkboxes.values():
+            cb.setEnabled(False)
+        # 根据勾选的曲线数量计算刷新间隔
+        checked_count = sum(1 for cb in self.checkboxes.values() if cb.isChecked())
+        interval = checked_count * 30
+        self.update_timer.start(interval)  # 启动图表刷新定时器
+        self.collection_changed.emit(True)
 
     def _on_stop_clicked(self):
         """停止采集按钮点击"""
         self.is_collecting = False
+        self.update_timer.stop()
         self.btn_start.setEnabled(True)
         self.btn_stop.setEnabled(False)
+        # 启用曲线选择复选框
+        for cb in self.checkboxes.values():
+            cb.setEnabled(True)
+        self.collection_changed.emit(False)
 
     def _on_clear_clicked(self):
         """清空按钮点击"""
@@ -132,31 +159,50 @@ class ChartPanel(QWidget):
             curve.setData([], [])
 
     def _update_plot(self):
-        """更新图表"""
+        """更新图表（定时器调用）"""
+        if not self.is_collecting:
+            return
+
+        if not self._feedback_cache:
+            return
+
+        # 设置起始时间
+        if self.data_collector._start_time is None:
+            self.data_collector.set_start_time(time.time())
+
+        # 将缓存数据添加到采集器
+        self.data_collector.append(time.time(), self._feedback_cache)
+
+        # 获取数据并更新图表
         timestamps, data_dict = self.data_collector.get_all_data()
 
         if not timestamps:
             return
 
-        # 设置起始时间
-        if self.data_collector._start_time is None and timestamps:
-            self.data_collector.set_start_time(timestamps[0])
-
         relative_timestamps = [t - self.data_collector._start_time for t in timestamps]
 
         for key, curve in self.curves.items():
             if key in data_dict and data_dict[key]:
-                curve.setData(relative_timestamps, data_dict[key])
+                # 过滤掉None值，避免pyqtgraph的np.isfinite报错
+                data = data_dict[key]
+                filtered_ts = []
+                filtered_data = []
+                for t, v in zip(relative_timestamps, data):
+                    if v is not None:
+                        filtered_ts.append(t)
+                        filtered_data.append(v)
+                if filtered_data:
+                    curve.setData(filtered_ts, filtered_data)
 
-    def append_data(self, timestamp, feedback_data):
-        """添加数据点
+    def append_data(self, feedback_data):
+        """添加数据点到缓存
 
         Args:
-            timestamp: 时间戳 (秒)
             feedback_data: 反馈数据字典
         """
-        if self.is_collecting:
-            self.data_collector.append(timestamp, feedback_data)
+        # 更新缓存中的数据
+        for key, value in feedback_data.items():
+            self._feedback_cache[key] = value
 
     def start_collection(self):
         """开始采集"""
@@ -165,6 +211,24 @@ class ChartPanel(QWidget):
     def stop_collection(self):
         """停止采集"""
         self._on_stop_clicked()
+
+    # 曲线key到参数ID的映射
+    CURVE_TO_PARAM_ID = {
+        'motor_speed': 0x64,
+        'current_d': 0x62,
+        'current_q': 0x63,
+        'motor_angle': 0x65,
+        'current_u': 0x60,
+        'current_v': 0x61,
+    }
+
+    def get_checked_param_ids(self):
+        """获取当前勾选的参数ID列表"""
+        checked_ids = []
+        for key, cb in self.checkboxes.items():
+            if cb.isChecked():
+                checked_ids.append(self.CURVE_TO_PARAM_ID[key])
+        return checked_ids
 
     def get_data_collector(self):
         """获取数据采集器"""

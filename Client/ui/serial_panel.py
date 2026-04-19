@@ -112,6 +112,10 @@ class SerialPanel(QWidget):
         self.serial_port.close()
         self._set_connected(False)
 
+    def force_disconnect(self):
+        """强制断开连接（用于接收线程检测到断开时）"""
+        self._set_connected(False)
+
     def _set_connected(self, connected):
         """设置连接状态
 
