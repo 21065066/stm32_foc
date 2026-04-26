@@ -161,13 +161,19 @@ int main(void)
   motor_control_context.type = control_type_speed;
   while (1)
   {
-    HAL_Delay(g_blink_speed);
-    // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET); // 亮灯
-    HAL_Delay(g_blink_speed);
-    // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET); // 灭灯
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+    // 周期性发送采集数据，ASCII 格式，100Hz
+    static uint32_t last_tick = 0;
+    if (HAL_GetTick() - last_tick >= 10)
+    {
+      last_tick = HAL_GetTick();
+      printf("DATA:%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n", 
+        motor_speed,
+        motor_i_d,
+        motor_i_q,
+        rad2deg(motor_logic_angle),
+        motor_i_u,
+        motor_i_v);
+    }
   }
   /* USER CODE END 3 */
 }

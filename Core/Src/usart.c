@@ -85,7 +85,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
 
   /* USER CODE BEGIN USART2_MspInit 1 */
     /* 3. NVIC 中断配置 */
-    HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(USART2_IRQn, 0, 0); // 串口优先级为0
     HAL_NVIC_EnableIRQ(USART2_IRQn);
   /* USER CODE END USART2_MspInit 1 */
   }
@@ -116,10 +116,18 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
 /* USER CODE BEGIN 1 */
 #include <stdio.h>
+
+/* 优化 printf 重定向，支持更高吞吐量 */
+int _write(int file, char *ptr, int len)
+{
+    HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 0xFFFF);
+    return len;
+}
+
 int fputc(int c, FILE *stream)
 {
   uint8_t ch[] = {(uint8_t)c};
-  HAL_UART_Transmit(&huart2, ch, 1, HAL_MAX_DELAY);
+  HAL_UART_Transmit(&huart2, ch, 1, 0xFFFF);
   return c;
 }
 /* USER CODE END 1 */

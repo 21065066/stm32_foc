@@ -38,8 +38,6 @@ class MainWindow(QMainWindow):
 
         self._init_ui()
         self._init_protocol()
-        self._init_timers()
-        self._init_chart_polling()
         self._load_config()
 
     def _init_ui(self):
@@ -94,48 +92,6 @@ class MainWindow(QMainWindow):
     def _init_protocol(self):
         """初始化协议处理器"""
         self.protocol_handler = ProtocolHandler()
-
-    def _init_timers(self):
-        """初始化定时器"""
-        pass  # 不再需要轮询定时器，由接收线程处理所有数据
-
-    CHART_POLL_INTERVAL = 20  # ms
-
-    def _init_chart_polling(self):
-        """初始化图表采集轮询"""
-        # 连接图表采集状态信号
-        self.chart_panel.collection_changed.connect(self._on_collection_changed)
-        # 创建轮询定时器
-        self._speed_poll_timer = QTimer()
-        self._speed_poll_timer.timeout.connect(self._poll_feedback_param)
-        self._speed_poll_timer.setSingleShot(False)
-        # 当前轮询索引
-        self._poll_index = 0
-
-    def _on_collection_changed(self, is_collecting):
-        """图表采集状态改变"""
-        if is_collecting:
-            self._poll_index = 0
-            self._speed_poll_timer.start(self.CHART_POLL_INTERVAL)  # 每20ms轮询
-        else:
-            self._speed_poll_timer.stop()
-
-    def _poll_feedback_param(self):
-        """轮询反馈参数"""
-        if not self.serial_panel.is_connected():
-            return
-        # 只发送当前勾选的参数
-        checked_ids = self.chart_panel.get_checked_param_ids()
-        if not checked_ids:
-            self._poll_index = 0  # 重置索引
-            return
-        # 确保索引在有效范围内
-        self._poll_index = self._poll_index % len(checked_ids)
-        param_id = checked_ids[self._poll_index]
-        self._poll_index = (self._poll_index + 1) % len(checked_ids)
-        frame = self.protocol_handler.build_read_frame(param_id)
-        self.serial_panel.write_data(frame)
-        self.log_panel.append_send_log(frame)
 
     def _load_config(self):
         """加载配置"""
@@ -206,6 +162,7 @@ class MainWindow(QMainWindow):
         # 连接接收线程信号
         self._serial_reader.frame_received.connect(self._on_reader_frame_received)
         self._serial_reader.param_updated.connect(self._on_reader_param_updated)
+        self._serial_reader.data_line_received.connect(self.chart_panel.append_data)
         self._serial_reader.error_occurred.connect(self._on_reader_error)
         self._serial_reader.connection_lost.connect(self._on_reader_connection_lost)
 
@@ -234,12 +191,9 @@ class MainWindow(QMainWindow):
         # 更新参数显示
         self.param_panel.update_param_value(param_id, value)
 
-        # 如果是反馈参数，更新存储值和图表
+        # 如果是反馈参数，更新存储值
         if 0x60 <= param_id <= 0x68:
             self.feedback_values[param_id] = value
-            # 如果正在采集，更新图表数据
-            if self.chart_panel.is_collecting:
-                self._update_chart_data()
 
     def _on_reader_error(self, error_msg):
         """接收线程发生错误"""
@@ -281,23 +235,6 @@ class MainWindow(QMainWindow):
         # 保存参数值到配置
         self.config_manager.set_param(param_id, value)
         self.config_manager.save()
-
-    def _update_chart_data(self):
-        """更新图表数据（放入缓存）"""
-        feedback_data = {
-            'motor_speed': self.feedback_values.get(0x64),  # 电机转速
-            'current_d': self.feedback_values.get(0x62),    # D轴电流
-            'current_q': self.feedback_values.get(0x63),    # Q轴电流
-            'motor_angle': self.feedback_values.get(0x65),  # 电机角度
-            'current_u': self.feedback_values.get(0x60),    # U相电流
-            'current_v': self.feedback_values.get(0x61),    # V相电流
-        }
-
-        # 过滤掉None值
-        feedback_data = {k: v for k, v in feedback_data.items() if v is not None}
-
-        if feedback_data:
-            self.chart_panel.append_data(feedback_data)
 
     def closeEvent(self, event):
         """关闭窗口事件"""

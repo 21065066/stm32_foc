@@ -59,19 +59,24 @@ class ChartPanel(QWidget):
         chart_group = QGroupBox("实时曲线")
         chart_layout = QVBoxLayout(chart_group)
 
+        # 创建 DateAxisItem 作为 X 轴，用于显示标准时间
+        date_axis = pg.DateAxisItem(orientation='bottom')
+        
         # 创建PlotWidget
-        self.plot_widget = pg.PlotWidget()
+        self.plot_widget = pg.PlotWidget(axisItems={'bottom': date_axis})
         self.plot_widget.setBackground('#1E1E1E')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
 
         # 设置Y轴标签
         self.plot_widget.setLabel('left', '数值')
-        self.plot_widget.setLabel('bottom', '时间', units='s')
+        self.plot_widget.setLabel('bottom', '时间')
 
         # 设置曲线
+        default_visible = ['motor_speed', 'current_d', 'current_q']
         for key, color in self.curve_colors.items():
             pen = pg.mkPen(color=color, width=1)
             curve = self.plot_widget.plot(pen=pen)
+            curve.setVisible(key in default_visible)
             self.curves[key] = curve
 
         chart_layout.addWidget(self.plot_widget)
@@ -83,7 +88,6 @@ class ChartPanel(QWidget):
         selector_layout = QHBoxLayout(selector_group)
 
         # 创建复选框
-        default_visible = ['motor_speed', 'current_d', 'current_q']
         for key, name in self.curve_names.items():
             # 颜色方块
             color_box = QLabel()
@@ -173,13 +177,11 @@ class ChartPanel(QWidget):
         # 将缓存数据添加到采集器
         self.data_collector.append(time.time(), self._feedback_cache)
 
-        # 获取数据并更新图表
-        timestamps, data_dict = self.data_collector.get_all_data()
+        # 获取数据并更新图表 (使用绝对时间戳以支持 DateAxisItem)
+        timestamps, data_dict = self.data_collector.get_all_data(absolute=True)
 
         if not timestamps:
             return
-
-        relative_timestamps = [t - self.data_collector._start_time for t in timestamps]
 
         for key, curve in self.curves.items():
             if key in data_dict and data_dict[key]:
@@ -187,7 +189,7 @@ class ChartPanel(QWidget):
                 data = data_dict[key]
                 filtered_ts = []
                 filtered_data = []
-                for t, v in zip(relative_timestamps, data):
+                for t, v in zip(timestamps, data):
                     if v is not None:
                         filtered_ts.append(t)
                         filtered_data.append(v)
@@ -202,7 +204,9 @@ class ChartPanel(QWidget):
         """
         # 更新缓存中的数据
         for key, value in feedback_data.items():
-            self._feedback_cache[key] = value
+            # 仅记录勾选且存在的参数
+            if key in self.checkboxes and self.checkboxes[key].isChecked():
+                self._feedback_cache[key] = value
 
     def start_collection(self):
         """开始采集"""
@@ -211,24 +215,6 @@ class ChartPanel(QWidget):
     def stop_collection(self):
         """停止采集"""
         self._on_stop_clicked()
-
-    # 曲线key到参数ID的映射
-    CURVE_TO_PARAM_ID = {
-        'motor_speed': 0x64,
-        'current_d': 0x62,
-        'current_q': 0x63,
-        'motor_angle': 0x65,
-        'current_u': 0x60,
-        'current_v': 0x61,
-    }
-
-    def get_checked_param_ids(self):
-        """获取当前勾选的参数ID列表"""
-        checked_ids = []
-        for key, cb in self.checkboxes.items():
-            if cb.isChecked():
-                checked_ids.append(self.CURVE_TO_PARAM_ID[key])
-        return checked_ids
 
     def get_data_collector(self):
         """获取数据采集器"""

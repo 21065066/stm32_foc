@@ -56,19 +56,20 @@ class DataCollector:
             else:
                 self.data[key].append(None)
 
-    def get_data(self, *keys):
+    def get_data(self, *keys, absolute=False):
         """获取指定曲线的数据
 
         Args:
             *keys: 要获取的曲线key
+            absolute: 是否返回绝对时间戳 (默认返回相对时间)
 
         Returns:
             tuple: (timestamps, [curve_data_list])
                 - timestamps: 时间戳列表
                 - curve_data_list: 各曲线数据的列表
         """
-        # 计算相对时间
-        if self._start_time is not None:
+        # 计算时间
+        if not absolute and self._start_time is not None:
             timestamps = [t - self._start_time for t in self.timestamps]
         else:
             timestamps = list(self.timestamps)
@@ -82,13 +83,16 @@ class DataCollector:
 
         return timestamps, curves
 
-    def get_all_data(self):
+    def get_all_data(self, absolute=False):
         """获取所有曲线数据
+
+        Args:
+            absolute: 是否返回绝对时间戳 (默认返回相对时间)
 
         Returns:
             tuple: (timestamps, data_dict)
         """
-        if self._start_time is not None:
+        if not absolute and self._start_time is not None:
             timestamps = [t - self._start_time for t in self.timestamps]
         else:
             timestamps = list(self.timestamps)
