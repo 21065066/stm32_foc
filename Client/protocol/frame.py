@@ -181,8 +181,11 @@ def unpack_param_value(data, data_len, data_type):
         data_type: 类型
 
     Returns:
-        解包后的值
+        解包后的值，如果 data_len 为 0 则返回 None
     """
+    if data_len == 0:
+        return None
+
     if data_type == 'int':
         return bytes_to_int(data, data_len)
 

@@ -188,6 +188,9 @@ class MainWindow(QMainWindow):
 
     def _on_reader_param_updated(self, param_id, value):
         """接收线程解析到参数更新"""
+        if value is None:
+            return
+
         # 更新参数显示
         self.param_panel.update_param_value(param_id, value)
 
