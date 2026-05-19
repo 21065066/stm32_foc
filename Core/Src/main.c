@@ -161,6 +161,9 @@ int main(void)
   motor_control_context.type = control_type_speed;
   while (1)
   {
+    /* 处理协议任务 */
+    protocol_task();
+
     // 周期性发送采集数据，ASCII 格式，100Hz
     static uint32_t last_tick = 0;
     if (HAL_GetTick() - last_tick >= 10)

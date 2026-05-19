@@ -81,6 +81,7 @@ typedef struct
 
 /* 协议处理函数 */
 void protocol_init(void);
+void protocol_task(void);
 void protocol_process_frame(protocol_frame_t *frame);
 void protocol_send_response(uint8_t cmd, uint8_t param_id, uint8_t *data, uint8_t data_len);
 

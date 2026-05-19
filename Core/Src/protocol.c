@@ -7,14 +7,21 @@
 #include <stdio.h>
 #include "../../Drivers/motor/foc.h"
 
-/* 协议接收缓冲区 */
-static uint8_t g_rx_buffer[PROTOCOL_FRAME_LENGTH * 100];
+/* 协议接收相关 */
+#define PROTOCOL_FIFO_SIZE 10
+static protocol_frame_t g_rx_fifo[PROTOCOL_FIFO_SIZE];
+static volatile uint8_t g_fifo_head = 0;
+static volatile uint8_t g_fifo_tail = 0;
+
+static uint8_t g_rx_byte;                     // 当前接收到的字节
+static uint8_t g_frame_buf[PROTOCOL_FRAME_LENGTH]; // 帧组装缓冲区
+static uint8_t g_frame_index = 0;             // 当前组装进度
 
 /* 协议初始化 */
 void protocol_init(void)
 {
-    /* 启动串口接收中断，先接收PROTOCOL_FRAME_LENGTH个字节 */
-    HAL_UART_Receive_IT(&huart2, g_rx_buffer, PROTOCOL_FRAME_LENGTH);
+    /* 启动串口接收中断，每次接收1个字节 */
+    HAL_UART_Receive_IT(&huart2, &g_rx_byte, 1);
     
     /* 测试：发送初始化完成消息 */
     const char *msg = "Protocol initialized\r\n";
@@ -412,16 +419,48 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART2)
     {
-        /* 处理帧 */
-        protocol_frame_t *frame = (protocol_frame_t *)g_rx_buffer;
-        protocol_process_frame(frame);
+        /* 状态机解析二进制协议帧 */
+        if (g_frame_index == 0)
+        {
+            if (g_rx_byte == PROTOCOL_SOF)
+            {
+                g_frame_buf[g_frame_index++] = g_rx_byte;
+            }
+        }
+        else
+        {
+            g_frame_buf[g_frame_index++] = g_rx_byte;
+            
+            if (g_frame_index >= PROTOCOL_FRAME_LENGTH)
+            {
+                /* 收到完整长度，检查帧尾 */
+                if (g_frame_buf[PROTOCOL_FRAME_LENGTH - 1] == PROTOCOL_EOF)
+                {
+                    /* 将接收到的数据存入 FIFO */
+                    uint8_t next_head = (g_fifo_head + 1) % PROTOCOL_FIFO_SIZE;
+                    if (next_head != g_fifo_tail)
+                    {
+                        memcpy(&g_rx_fifo[g_fifo_head], g_frame_buf, PROTOCOL_FRAME_LENGTH);
+                        g_fifo_head = next_head;
+                    }
+                }
+                /* 无论成功失败，重置状态机 */
+                g_frame_index = 0;
+            }
+        }
+        
         /* 重新启动接收 */
-        HAL_UART_Receive_IT(huart, g_rx_buffer, PROTOCOL_FRAME_LENGTH);
+        HAL_UART_Receive_IT(huart, &g_rx_byte, 1);
     }
 }
 
 /* 协议任务处理（在main循环中调用） */
 void protocol_task(void)
 {
-    /* 可以在这里添加周期性任务 */
+    /* 处理 FIFO 中的帧 */
+    while (g_fifo_tail != g_fifo_head)
+    {
+        protocol_process_frame(&g_rx_fifo[g_fifo_tail]);
+        g_fifo_tail = (g_fifo_tail + 1) % PROTOCOL_FIFO_SIZE;
+    }
 }
