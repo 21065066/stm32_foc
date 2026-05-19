@@ -2,7 +2,7 @@
 """参数面板"""
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-                             QScrollArea, QLabel)
+                             QScrollArea, QLabel, QPushButton)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from .param_widget import ParamWidget
@@ -15,6 +15,7 @@ class ParamPanel(QWidget):
     # 信号定义
     read_requested = pyqtSignal(int)      # 读取参数请求 (param_id)
     write_requested = pyqtSignal(int, object)  # 写入参数请求 (param_id, value)
+    read_all_requested = pyqtSignal()     # 一键读取请求
 
     def __init__(self, slider_ranges=None, slider_steps=None, parent=None):
         """初始化参数面板
@@ -31,6 +32,40 @@ class ParamPanel(QWidget):
 
     def _init_ui(self):
         """初始化UI"""
+        # 主布局
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(5)
+
+        # 顶部工具栏
+        top_layout = QHBoxLayout()
+        top_layout.setContentsMargins(10, 5, 10, 5)
+        
+        self.btn_read_all = QPushButton("一键读取")
+        self.btn_read_all.setFixedHeight(35)
+        self.btn_read_all.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #1E88E5;
+            }
+            QPushButton:pressed {
+                background-color: #1976D2;
+            }
+            QPushButton:disabled {
+                background-color: #BDBDBD;
+            }
+        """)
+        self.btn_read_all.clicked.connect(self._on_read_all_clicked)
+        top_layout.addWidget(self.btn_read_all)
+        top_layout.addStretch()
+        
+        main_layout.addLayout(top_layout)
+
         # 创建滚动区域
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -51,11 +86,15 @@ class ParamPanel(QWidget):
         layout.addStretch()
 
         scroll.setWidget(content)
-
-        # 主布局
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll)
+
+    def _on_read_all_clicked(self):
+        """一键读取按钮点击"""
+        # 遍历所有参数并逐个发送读取请求
+        # 排除一些不需要一键读取的实时反馈值（可选，这里先全部读取）
+        for param_id in self.param_widgets.keys():
+            self.read_requested.emit(param_id)
+        self.read_all_requested.emit()
 
     def _create_hardware_group(self):
         """创建硬件参数组"""
@@ -181,6 +220,7 @@ class ParamPanel(QWidget):
         Args:
             enabled: 是否启用
         """
+        self.btn_read_all.setEnabled(enabled)
         for widget in self.param_widgets.values():
             widget.set_enabled(enabled)
 

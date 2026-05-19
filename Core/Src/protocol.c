@@ -8,7 +8,7 @@
 #include "../../Drivers/motor/foc.h"
 
 /* 协议接收相关 */
-#define PROTOCOL_FIFO_SIZE 10
+#define PROTOCOL_FIFO_SIZE 64
 static protocol_frame_t g_rx_fifo[PROTOCOL_FIFO_SIZE];
 static volatile uint8_t g_fifo_head = 0;
 static volatile uint8_t g_fifo_tail = 0;
